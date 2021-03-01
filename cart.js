@@ -1,92 +1,91 @@
-const { request } = require('express');
+// const { request } = require('express');
 const express = require('express');
 const cart = express.Router();
 
-// Hard-coded array
-const cartList = [
-    {id: 1, product: "juice", price: 2.50, quantity: 2},
-    {id: 2, product: "chips", price: 3.00, quantity: 1},
-    {id: 3, product: "ice cream", price: 3.50, quantity: 1},
-    {id: 4, product: "apples", price: 1.99, quantity: 3}
-];
+const pool = require('./connection');
+
+// // Hard-coded array
+// const cartList = [
+//     {id: 1, product: "juice", price: 3, quantity: 2},
+//     {id: 2, product: "chips", price: 3, quantity: 1},
+//     {id: 3, product: "ice cream", price: 4, quantity: 1},
+//     {id: 4, product: "apples", price: 2, quantity: 3}
+// ];
 
 // GET /cart-items
 cart.get("/", (req, res) => {
-    let filteredCart = cartList
+    pool.query('SELECT * FROM shopping_cart').then((result) => {
+        res.json(result.rows)
+    });
+
    let maxPrice = parseFloat(req.query.maxPrice) 
     if (maxPrice) {
-       filteredCart = cartList.filter( (item) => {
-             return item.price <= maxPrice
-        })
-
+        pool.query('SELECT * FROM shopping_cart WHERE price <= $1', [maxPrice]).then((result) => {
+                res.json(result.rows);
+        });
     }
+    
     if (req.query.prefix) {
-        filteredCart = cartList.filter( (item) => {
-            return item.product.startsWith(req.query.prefix)
-        })
+        pool.query('SELECT * FROM shopping_cart WHERE product LIKE $1', [req.query.prefix + "%"]).then((result) => {
+        res.json(result.rows)
+        });
+    }
 
-    }
     if (req.query.pageSize) {
-        filteredCart = cartList.slice(0, parseInt(req.query.pageSize));
+        pool.query('SELECT * FROM shopping_cart LIMIT $1', [req.query.pageSize]).then((result) => {
+        res.json(result.rows)
+        });
     }
-     res.json(filteredCart);
+        else{
+            pool.query('SELECT * FROM shopping_cart').then((result) => {
+                res.json(result.rows);
+                });
+        }
 });
 
 // GET /cart-items/:id
 cart.get("/:id", (req, res) => {
+   let id = parseInt(req.params.id);
+    pool.query('SELECT * FROM shopping_cart WHERE id = $1', [id]).then((result) => {
+        res.json(result.rows)
+    });
 
-    const item = cartList.find(c => c.id === parseInt(req.params.id));
-    if (!item) res.status(404).send('ID Not Found')
-
-//     const id = req.params.cartId;
-
-//     const item = cartList.find( (cart) => {
-//         return cart.id === id;
-//     })
-
-//     res.json(item);
+    // if (!id) res.status(404).send('ID Not Found')
 });
 
 // POST /cart-items
 cart.post("/", (req, res) => {
-    // Get item from body
-    const newCartItem = {
-        id: cartList.length + 1,
-        product: req.body.product,
-        price: req.body.price,
-        quantity: req.body.quantity,
-    };
-    cartList.push(newCartItem);
+    console.log("Hi there")
+    const product = req.body.product
+    const price = parseFloat(req.body.price)
+    const quantity = parseInt(req.body.quantity)
 
-    res.status(201).send(cartList);
-    // res.json(cartList)
-});
+    pool.query("INSERT INTO shopping_cart (product, price, quantity) VAlUES ($1, $2, $3) RETURNING *", [product, price, quantity]).then(() => {
+        // res.json(req.body)
+        res.status(201);
+        res.json(results.rows);
+                })
+        });
 
 // PUT /cart-items/:id
 cart.put("/:id", (req, res) => {
-    const id = req.params.cartId;
+    const id = req.params.id;
+    const product = req.body.product
+    const price = parseFloat(req.body.price)
+    const quantity = parseInt(req.body.quantity)
 
-    const index = cartList.findIndex( (cart) => {
-        return cart.id === id;
-    })
+    pool.query('UPDATE shopping_cart SET product = $1, price = $2, quantity = $3 WHERE id = $4 RETURNING *', [product, price, quantity, id]).then((results) => {
+        res.json(result.rows)
+    });
 
-    const newCart = req.body;
-
-    cart.splice(index, 1, newCart);
-
-  res.json(newCart);
 });
 
 // DELETE /cart-items/:id
 cart.delete("/:id", (req, res) => {
-
-    const index = cartList.findIndex( (cart) => {
-        return cart.id === id;
-    })
-
-    cart.splice(index, 1);
-    res.status(204)
-    res.json("Deleted");
-});
+    // let id = parseInt(req.params.id);
+    pool.query('DELETE FROM shopping_cart WHERE id = $1', [req.params.id]).then(() => {
+        res.sendStatus(204)
+        });
+    });
 
 module.exports = cart;
